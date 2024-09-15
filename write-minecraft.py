@@ -37,6 +37,11 @@ async def send_message(host, port, chat_history):
         test_data = await reader_post.read(200)
         logging.info(test_data.decode())
 
+        # print(test_data)
+        if user_hash and json.loads(test_data.decode()[:4]) is None:
+            logging.info('Incorrect hash. Check it, or create an account')
+            user_hash = None
+
         if not user_hash:
             username = input()
 
