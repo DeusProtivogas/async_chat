@@ -5,35 +5,46 @@ import asyncio
 import datetime
 import aiofiles
 import configargparse
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("tcp_client.log"),
+        logging.StreamHandler()
+    ]
+)
 
 
 async def send_message(host, port, chat_history):
 
     try:
-        print('starting connection with sender')
+        logging.info('Starting connection to %s:%s', host, port)
         # reader, _ = await asyncio.open_connection(host, port)
-        reader_post, writer_post = await asyncio.open_connection(host, 5050)
+        reader_post, writer_post = await asyncio.open_connection(host, port)
 
-        test_data = await reader_post.read(200)
-        print(test_data.decode())
+        data = await reader_post.read(200)
+        logging.info('Received data: %s', data.decode().strip())
 
-        hash = input()
-
-        writer_post.write(f'{hash}\n'.encode())
+        user_hash = input()
+        writer_post.write(f'{user_hash}\n'.encode())
         await writer_post.drain()
         # writer_post.close()
         # await writer_post.wait_closed()
 
         test_data = await reader_post.read(200)
-        print(test_data.decode())
+        logging.info(test_data.decode())
 
-        if not hash:
+        if not user_hash:
             username = input()
 
             writer_post.write(f'{username}\n'.encode())
             await writer_post.drain()
-            response = await reader_post.read(200)
-            print(response.decode())
+            response = await reader_post.read(400)
+            logging.info(response.decode())
+
 
         while True:
 
@@ -42,12 +53,10 @@ async def send_message(host, port, chat_history):
 
             await asyncio.sleep(1)
     except Exception as e:
-        print(e)
+        logging.error('An error occurred: %s', e)
 
     finally:
-        print('Closing the connection.')
-        # writer_post.close()
-        # await writer_post.wait_closed()
+        logging.info('Closing the connection.')
 
 
 async def main(args):
@@ -62,11 +71,11 @@ if __name__ == '__main__':
 
     parser = configargparse.ArgumentParser(
         description="TCP Chat Poster",
-        default_config_files=['.minecraft.config']
+        default_config_files=['.minecraft_write.config']
     )
 
     parser.add_argument('--host', type=str, help='Server host', env_var='MINECHAT_HOST', default='minechat.dvmn.org')
-    parser.add_argument('--port', type=int, help='Server port', env_var='MINECHAT_PORT', default=5000)
+    parser.add_argument('--port', type=int, help='Server port', env_var='MINECHAT_WRITE_PORT', default=5050)
     parser.add_argument('--history', type=str, help='File to save chat history', env_var='MINECHAT_HISTORY',
                         default='minecraft.txt')
     # parser.add_argument('--hash', type=str, help='Hash', env_var='MINECHAT_HASH', default=test_hash)
@@ -76,6 +85,6 @@ if __name__ == '__main__':
     try:
         asyncio.run(main(args))
     except asyncio.CancelledError:
-        print('Connection cancelled.')
+        logging.warning('Connection cancelled.')
     except KeyboardInterrupt:
-        print("Program interrupted.")
+        logging.info("Program interrupted.")

@@ -5,6 +5,18 @@ import asyncio
 import datetime
 import aiofiles
 import configargparse
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("tcp_client.log"),
+        logging.StreamHandler()
+    ]
+)
+
 
 async def tcp_echo_client(host, port, chat_history, hash):
     # host = 'minechat.dvmn.org'
@@ -13,7 +25,7 @@ async def tcp_echo_client(host, port, chat_history, hash):
     message = 'message test'
 
     try:
-        print('starting connection')
+        logging.info('Starting connection to %s:%s', host, port)
         reader, _ = await asyncio.open_connection(host, port)
 
         while True:
@@ -21,16 +33,18 @@ async def tcp_echo_client(host, port, chat_history, hash):
             data = await reader.read(200)
             if not data:
                 break
-            print(data.decode(), end='')
+
+            logging.info('Received data: %s', data.decode().strip())
             async with aiofiles.open(chat_history, "a", encoding='UTF-8') as f:
                 await f.write(f'[{datetime.datetime.now().strftime("%d.%m.%Y %H:%M")}]: {data.decode()}')
 
             await asyncio.sleep(1)
 
+    except Exception as e:
+        logging.error('An error occurred: %s', e)
+
     finally:
-        print('Closing the connection.')
-        # writer_post.close()
-        # await writer_post.wait_closed()
+        logging.info('Closing the connection.')
 
 
 async def main(args):
@@ -59,6 +73,6 @@ if __name__ == '__main__':
     try:
         asyncio.run(main(args))
     except asyncio.CancelledError:
-        print('Connection cancelled.')
+        logging.warning('Connection cancelled.')
     except KeyboardInterrupt:
-        print("Program interrupted.")
+        logging.info("Program interrupted.")
