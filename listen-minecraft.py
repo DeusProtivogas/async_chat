@@ -7,7 +7,6 @@ import aiofiles
 import configargparse
 import logging
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -18,12 +17,7 @@ logging.basicConfig(
 )
 
 
-async def tcp_echo_client(host, port, chat_history, hash):
-    # host = 'minechat.dvmn.org'
-    # port = 5000
-
-    message = 'message test'
-
+async def tcp_echo_client(host, port, chat_history):
     try:
         logging.info('Starting connection to %s:%s', host, port)
         reader, writer = await asyncio.open_connection(host, port)
@@ -50,9 +44,7 @@ async def tcp_echo_client(host, port, chat_history, hash):
 
 
 async def main(args):
-    # while True:
-    await tcp_echo_client(args.host, args.port, args.history, args.hash)
-        # await asyncio.sleep(1)
+    await tcp_echo_client(args.host, args.port, args.history)
 
 
 if __name__ == '__main__':

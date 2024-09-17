@@ -151,7 +151,6 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, help='Server port', env_var='MINECHAT_WRITE_PORT', default=5050)
     parser.add_argument('--history', type=str, help='File to save chat history', env_var='MINECHAT_HISTORY',
                         default='minecraft.txt')
-    # parser.add_argument('--hash', type=str, help='Hash', env_var='MINECHAT_HASH', default=test_hash)
 
     args = parser.parse_args()
 
