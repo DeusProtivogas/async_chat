@@ -26,7 +26,7 @@ async def tcp_echo_client(host, port, chat_history, hash):
 
     try:
         logging.info('Starting connection to %s:%s', host, port)
-        reader, _ = await asyncio.open_connection(host, port)
+        reader, writer = await asyncio.open_connection(host, port)
 
         while True:
 
@@ -44,6 +44,8 @@ async def tcp_echo_client(host, port, chat_history, hash):
         logging.error('An error occurred: %s', e)
 
     finally:
+        writer.close()
+        await writer.wait_closed()
         logging.info('Closing the connection.')
 
 
