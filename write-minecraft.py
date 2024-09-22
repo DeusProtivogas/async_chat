@@ -1,6 +1,5 @@
 import json
 import os
-import argparse
 import asyncio
 import datetime
 import aiofiles
@@ -16,6 +15,7 @@ logging.basicConfig(
     ]
 )
 
+
 async def load_account():
     if os.path.exists(ACCOUNT_FILE):
         async with aiofiles.open(ACCOUNT_FILE, 'r') as f:
@@ -28,120 +28,108 @@ async def save_account(account_data):
     async with aiofiles.open(ACCOUNT_FILE, 'w') as f:
         await f.write(json.dumps(account_data))
 
+async def handle_bad_hash(reader, writer):
+    logging.info('Registering new user...')
 
-async def register_user(host, port):
+    username = input("Enter your username: ")
+    writer.write(f'{username}\n'.encode())
+    await writer.drain()
+
+    response = await reader.read(400)
+    user_data = response.decode().split("\n")[0]
+    logging.info(response.decode())
+
+    account_data = json.loads(user_data)
+    await save_account(account_data)
+
+    logging.info(f'New account created: {account_data["nickname"]}, hash: {account_data["account_hash"]}')
+
+async def register_user(reader, writer):
+    logging.info('Registering new user...')
+
+    response = await reader.read(400)
+    logging.info(f'Received: {response.decode()}')
+    writer.write(f'\n'.encode())
+    await writer.drain()
+
+    response = await reader.read(400)
+    logging.info(f'New received: {response.decode()}')
+    username = input("Enter your username: ")
+    writer.write(f'{username}\n'.encode())
+    await writer.drain()
+
+    response = await reader.read(400)
+    user_data = response.decode().split("\n")[0]
+    logging.info(response.decode())
+
+    account_data = json.loads(user_data)
+    await save_account(account_data)
+
+    logging.info(f'New account created: {account_data["nickname"]}, hash: {account_data["account_hash"]}')
+
+
+async def authenticate_user(reader, writer, account):
+    logging.info(f'Authenticating with hash: {account["account_hash"]}')
+
+    _ = await reader.read(200)
+    writer.write(f'{account["account_hash"]}\n'.encode())
+    await writer.drain()
+
+    data = await reader.read(200)
+    logging.info(data.decode())
+
+    if account["account_hash"] and json.loads(data.decode().split('\n')[0]) is None:
+        logging.info('Incorrect hash. Check it, or create an account')
+        return False
+    return True
+
+
+async def connection_handler(host, port):
+    reader, writer = await asyncio.open_connection(host, port)
+
     try:
-        logging.info('Registering new user...')
-        reader, writer = await asyncio.open_connection(host, port)
+        account = await load_account()
+        if not account:
+            logging.info('No existing account found, starting registration')
+            await register_user(reader, writer)
 
-        response = await reader.read(400)
-        logging.info(f'Received: {response.decode()}')
-        writer.write(f'\n'.encode())
-        await writer.drain()
+            writer.close()
+            await writer.wait_closed()
+            reader, writer = await asyncio.open_connection(host, port)
+            account = await load_account()
 
-        response = await reader.read(400)
-        logging.info(f'New received: {response.decode()}')
-        username = input()
-        writer.write(f'{username}\n'.encode())
-        await writer.drain()
+        if not await authenticate_user(reader, writer, account):
+            create_account = input("Do you want to register a new account? (y/n): ").strip().lower()
+            if create_account == 'y':
+                await handle_bad_hash(reader, writer)
+            else:
+                logging.info('Exiting program...')
+                return
 
-        response = await reader.read(400)
-        user_data = response.decode().split("\n")[0]
-        logging.info(f'New new received: {user_data}')
-
-        account_data = json.loads(user_data)
-        await save_account(account_data)
-
-        logging.info(f'New account created: {account_data["nickname"]}, hash: {account_data["account_hash"]}')
-
+        await send_message(reader, writer)
+    except Exception as e:
+        logging.error('An error occurred: %s', e)
     finally:
         writer.close()
         await writer.wait_closed()
-
-async def register_account(host, port):
-    reader_post, writer_post = await asyncio.open_connection(host, port)
-    await register_user(host, port)
-    account = await load_account()
-
-    response = await reader_post.read(400)
-    logging.info(f'Received: {response.decode()}')
-    user_hash = account['account_hash']
-    logging.info(f'Retrying authentication with new hash: {user_hash}')
-
-    writer_post.write(f'{user_hash}\n'.encode())
-    await writer_post.drain()
-    test_data = await reader_post.read(200)
-
-    logging.info(test_data.decode())
-    return reader_post, writer_post
-
-async def login(host, port):
-    account = await load_account()
-
-    if not account:
-        logging.info('No existing account found, starting registration')
-        await register_user(host, port)
-        account = await load_account()
-
-    user_hash = account['account_hash']
-    logging.info(f'Authenticating with hash: {user_hash}')
-
-    logging.info('Starting connection to %s:%s', host, port)
-    reader_post, writer_post = await asyncio.open_connection(host, port)
-
-    _ = await reader_post.read(200)
-
-    writer_post.write(f'{user_hash}\n'.encode())
-    await writer_post.drain()
-
-    data = await reader_post.read(200)
-    logging.info(data.decode())
-
-    if user_hash and json.loads(data.decode().split('\n')[0]) is None:
-        logging.info('Incorrect hash. Check it, or create an account')
-
-        create_account = input("Do you want to register a new account? (y/n): ").strip().lower()
-
-        if create_account == 'y':
-            writer_post.close()
-            await writer_post.wait_closed()
-            reader_post, writer_post = await register_account(host, port)
-        else:
-            logging.info('Exiting program...')
-            return
-    return writer_post
+        logging.info('Connection closed.')
 
 
-async def send_message(host, port):
-
-    try:
-        writer_post = await login(host, port)
-
-        while True:
-
-            message = input()
-            writer_post.write(f'{message}\n'.encode())
-
-            await asyncio.sleep(1)
-    except Exception as e:
-        logging.error('An error occurred: %s', e)
-
-    finally:
-        writer_post.close()
-        await writer_post.wait_closed()
-        logging.info('Closing the connection.')
+async def send_message(reader, writer):
+    logging.info("You can start sending messages.")
+    while True:
+        message = input()
+        writer.write(f'{message}\n'.encode())
+        await writer.drain()
+        await asyncio.sleep(1)
 
 
 async def main(args):
-    await send_message(args.host, args.port)
+    await connection_handler(args.host, args.port)
 
 
 if __name__ == '__main__':
-
     ACCOUNT_FILE = 'account.json'
-
-    test_hash = '34b3131a-7278-11ef-abed-0242ac110002'
-
     parser = configargparse.ArgumentParser(
         description="TCP Chat Poster",
         default_config_files=['.minecraft_write.config']
